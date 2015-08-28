@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<!-- ant build file for Freenet -->
+
+<project name="Freenet" default="dist" basedir=".">
+	<property name="freenet-cvs-snapshot.location" location="lib/freenet.jar"/>
+	<property name="freenet-ext.location" location="lib/freenet_ext/freenet-ext.jar"/>
+	<property name="svn.revision" value="@custom@"/>
+	<property name="source-version" value="1.5"/>
+	<property name="build" location="build/"/>
+	<property name="dist" location="dist/"/>
+	<available file="src/plugins/RestFreenet/Version.java" property="version.present"/>
+
+	<target name="mkdir">
+		<mkdir dir="${build}"/>
+		<mkdir dir="${dist}"/>
+		<echo message="Using ${freenet-cvs-snapshot.location} as freenet-cvs-snapshot.jar"/>
+		<echo message="Using ${freenet-ext.location} as freenet-ext.jar"/>
+	</target>
+	
+	<target name="setver" if="version.present">
+		<!-- Update the Version file -->
+		<replace file="src/plugins/RestFreenet/Version.java">
+			<replacefilter token="@custom@" value="${svn.revision}"/>
+		</replace>
+	</target>
+
+	<!-- ================================================== -->
+	<target name="compile" depends="mkdir,setver" >
+		<!-- Create the time stamp -->
+		<tstamp/>
+		<!-- Create the build directory structure used by compile -->
+
+		<!-- FIXME: remove the debug and replace with optimize -->
+		<javac srcdir="src/" destdir="${build}" debug="on" optimize="on" source="${source-version}">
+			<classpath>
+				<pathelement location="${freenet-ext.location}"/>
+				<pathelement location="${freenet-cvs-snapshot.location}"/>              
+			</classpath>
+			<include name="**/*.java"/>
+			<exclude name="**/*Test.java"/>
+		</javac>
+	</target>
+
+	<!-- ================================================== -->
+	<target name="dist" depends="clean,compile"
+		description="generate the distribution" >
+		<jar jarfile="${dist}/Librenet.jar" duplicate="fail">
+			<manifest>
+                                <attribute name="DependencyFinder" value="main"/>
+				<attribute name="Plugin-Main-Class" value="plugins.Librenet.Librenet"/>
+			</manifest>
+			<fileset dir="src/" casesensitive="no">
+				<include name="*.txt"/>
+			</fileset>
+			<fileset dir="${build}/"/>
+		</jar>
+	</target>
+
+	<!-- ================================================== -->
+	<target name="clean" description="Delete class files and docs dir.">
+		<delete dir="${build}"/>
+		<delete dir="${dist}"/>
+	</target>
+</project>
