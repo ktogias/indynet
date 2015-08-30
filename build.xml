@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- ant build file for Freenet -->
 
-<project name="Freenet" default="dist" basedir=".">
+<project name="Indynet" default="dist" basedir=".">
 	<property name="freenet-cvs-snapshot.location" location="lib/freenet.jar"/>
 	<property name="freenet-ext.location" location="lib/freenet_ext/freenet-ext.jar"/>
 	<property name="svn.revision" value="@custom@"/>
@@ -44,10 +44,10 @@
 	<!-- ================================================== -->
 	<target name="dist" depends="clean,compile"
 		description="generate the distribution" >
-		<jar jarfile="${dist}/Librenet.jar" duplicate="fail">
+		<jar jarfile="${dist}/Indynet.jar" duplicate="fail">
 			<manifest>
                                 <attribute name="DependencyFinder" value="main"/>
-				<attribute name="Plugin-Main-Class" value="plugins.Librenet.Librenet"/>
+				<attribute name="Plugin-Main-Class" value="plugins.Indynet.Indynet"/>
 			</manifest>
 			<fileset dir="src/" casesensitive="no">
 				<include name="*.txt"/>

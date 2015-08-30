@@ -2,7 +2,7 @@
  * @version 0.1
  * @author Konstantinos Togias <info@ktogias.gr>
  */
-package plugins.Librenet;
+package plugins.Indynet;
 
 import freenet.clients.http.ToadletContainer;
 import freenet.pluginmanager.*;
@@ -12,10 +12,10 @@ import freenet.pluginmanager.*;
  *
  * @author Konstantinos Togias <info@ktogias.gr>
  */
-public class Librenet implements FredPlugin, FredPluginThreadless {
+public class Indynet implements FredPlugin, FredPluginThreadless {
 
     PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
-    final static String basePath = "/librenet/"; //The base path under which the pugin is accessed. 
+    final static String basePath = "/indynet/"; //The base path under which the pugin is accessed. 
 
     /**
      * Dummy implementation of terminate method. 
@@ -35,7 +35,7 @@ public class Librenet implements FredPlugin, FredPluginThreadless {
     public void runPlugin(PluginRespirator pr) {
         this.pr = pr;
         ToadletContainer tc = pr.getToadletContainer(); //Get the container
-        LibrenetToadlet rt = new LibrenetToadlet(basePath, pr.getHLSimpleClient(), pr.getNode()); //Create the Toadlet that handles the HTTP requests
+        IndynetToadlet rt = new IndynetToadlet(basePath, pr.getHLSimpleClient(), pr.getNode()); //Create the Toadlet that handles the HTTP requests
         tc.register(rt, null, rt.path(), true, false); //Resgister the Toadlet to the container
     }
 }
