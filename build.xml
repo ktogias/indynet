@@ -2,13 +2,14 @@
 <!-- ant build file for Freenet -->
 
 <project name="Indynet" default="dist" basedir=".">
+        <property name="json-simple.location" location="lib/json-simple-1.1.1.jar"/>
 	<property name="freenet-cvs-snapshot.location" location="lib/freenet.jar"/>
 	<property name="freenet-ext.location" location="lib/freenet_ext/freenet-ext.jar"/>
 	<property name="svn.revision" value="@custom@"/>
 	<property name="source-version" value="1.5"/>
 	<property name="build" location="build/"/>
 	<property name="dist" location="dist/"/>
-	<available file="src/plugins/RestFreenet/Version.java" property="version.present"/>
+	<available file="src/plugins/Indynet/Version.java" property="version.present"/>
 
 	<target name="mkdir">
 		<mkdir dir="${build}"/>
@@ -19,7 +20,7 @@
 	
 	<target name="setver" if="version.present">
 		<!-- Update the Version file -->
-		<replace file="src/plugins/RestFreenet/Version.java">
+		<replace file="src/plugins/Indynet/Version.java">
 			<replacefilter token="@custom@" value="${svn.revision}"/>
 		</replace>
 	</target>
@@ -33,6 +34,7 @@
 		<!-- FIXME: remove the debug and replace with optimize -->
 		<javac srcdir="src/" destdir="${build}" debug="on" optimize="on" source="${source-version}">
 			<classpath>
+                                <pathelement location="${json-simple.location}"/>
 				<pathelement location="${freenet-ext.location}"/>
 				<pathelement location="${freenet-cvs-snapshot.location}"/>              
 			</classpath>
@@ -45,6 +47,7 @@
 	<target name="dist" depends="clean,compile"
 		description="generate the distribution" >
 		<jar jarfile="${dist}/Indynet.jar" duplicate="fail">
+                        <zipgroupfileset dir="lib" includes="json-simple-1.1.1.jar" />
 			<manifest>
                                 <attribute name="DependencyFinder" value="main"/>
 				<attribute name="Plugin-Main-Class" value="plugins.Indynet.Indynet"/>

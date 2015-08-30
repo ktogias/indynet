@@ -32,6 +32,7 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
     protected String path; //The url path under witch the Toadlet is accessed
     protected HighLevelSimpleClient client;
     protected Node node;
+    protected IndynetResolver resolver;
     
     /**
      * Class Constructor
@@ -40,11 +41,12 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
      * @param client HighLevelSimpleClient
      * @param node Node
      */
-    public IndynetToadlet(String path, HighLevelSimpleClient client, Node node) {
+    public IndynetToadlet(String path, HighLevelSimpleClient client, Node node, IndynetResolver resolver) {
         super(client);
         this.path = path;
         this.client = client;
         this.node = node;
+        this.resolver = resolver;
     }
     
     /**
@@ -77,8 +79,14 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
             furi = new FreenetURI(key); 
         }
         catch (MalformedURLException e){
-            writeReply(tc, 400, "text/plain", "error", "Malformed key: "+key);
-            return;
+            if (resolver == null || key.startsWith("CHK@") || key.startsWith("SSK@") || key.startsWith("USK@") || key.startsWith("KSK@")){
+                writeReply(tc, 400, "text/plain", "error", "Malformed key: "+key);
+                return;
+            }
+            else {
+                resolver.resolve(key);
+                writeReply(tc, 500, "text/plain", "error", "key: "+key+" resolveKey:"+resolver.resolve(key));
+            }
         }
         catch (Exception e){
             writeReply(tc, 400, "text/plain", "error", "Bad request");
