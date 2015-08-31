@@ -14,6 +14,7 @@ import freenet.clients.http.ToadletContextClosedException;
 import freenet.keys.FreenetURI;
 import freenet.node.Node;
 import freenet.support.MultiValueTable;
+import freenet.support.SimpleFieldSet;
 import freenet.support.api.HTTPRequest;
 import java.io.IOException;
 import java.net.URI;
@@ -21,6 +22,8 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
 
 /**
  * The Toadlet class
@@ -40,6 +43,7 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
      * @param path String : The url path under witch the Toadlet is accessed
      * @param client HighLevelSimpleClient
      * @param node Node
+     * @param resolver
      */
     public IndynetToadlet(String path, HighLevelSimpleClient client, Node node, IndynetResolver resolver) {
         super(client);
@@ -71,7 +75,7 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
     }
     
     @Override
-    public void handleMethodGET(URI uri, HTTPRequest httpr, ToadletContext tc) throws ToadletContextClosedException, IOException{
+    public void handleMethodGET(URI uri, HTTPRequest httpr, ToadletContext tc) throws ToadletContextClosedException, IOException, MalformedURLException{
         String key = null;
         FreenetURI furi = null;
         try {
@@ -84,8 +88,18 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
                 return;
             }
             else {
-                resolver.resolve(key);
-                writeReply(tc, 500, "text/plain", "error", "key: "+key+" resolveKey:"+resolver.resolve(key));
+                try {
+                    SimpleFieldSet keyparts = decomposeNamedKey(key);
+                    JSONObject resolveObject;
+                    resolveObject = resolver.resolve(keyparts.get("name"));
+                    String requestKey = (String) resolveObject.get("requestKey");
+                    furi = new FreenetURI(requestKey+keyparts.get("path"));
+                } catch (FetchException ex) {
+                    writeReply(tc, 404, "text/plain", "Not found", "Malformed key or name not found: "+key);
+                } catch (ParseException ex) {
+                    writeReply(tc, 500, "text/plain", "error", "Resolver JSON parse error!");
+                }
+                
             }
         }
         catch (Exception e){
@@ -101,6 +115,18 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
     
     private String getKeyFromUri(URI uri) throws Exception{
         return uri.getPath().replaceFirst(path, "");
+    }
+    
+    private SimpleFieldSet decomposeNamedKey(String key){
+        SimpleFieldSet decomposition = new SimpleFieldSet(false);
+        String[] parts = key.split("/");
+        decomposition.putSingle("name", parts[0]);
+        String path = "";
+        for (int i=1; i<parts.length; i++){
+                path+="/"+parts[i];
+        }
+        decomposition.putSingle("path", path);
+        return decomposition;
     }
     
     private void ftechFreenetURI(FreenetURI furi, ToadletContext tc) throws ToadletContextClosedException, IOException, URISyntaxException{

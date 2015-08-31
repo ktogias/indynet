@@ -4,6 +4,7 @@
  */
 package plugins.Indynet;
 
+import freenet.client.FetchException;
 import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
 import freenet.clients.http.ToadletContainer;
@@ -11,8 +12,10 @@ import freenet.pluginmanager.*;
 import freenet.pluginmanager.FredPluginFCPMessageHandler.ServerSideFCPMessageHandler;
 import freenet.support.SimpleFieldSet;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 
 /**
@@ -24,21 +27,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
 
     PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
     final static String BASEPATH = "/indynet/"; //The base path under which the pugin is accessed. 
+    final static String RESOLV_FILE = "indynet.resolv.json";
     static IndynetResolver resolver;
     
-   public Indynet(){
-        try {
-            resolver = new IndynetResolver();
-        } catch (IOException e){
-            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, e);
-            resolver = null;
-        } catch (ParseException e) {
-            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, e);
-            resolver = null;
-        }
-       
-   }
-
     /**
      * Dummy implementation of terminate method. 
      */
@@ -55,6 +46,15 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
      */
     @Override
     public void runPlugin(PluginRespirator pr) {
+        try {
+            resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE);
+        } catch (IOException e){
+            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, e);
+            resolver = null;
+        } catch (ParseException e) {
+            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, e);
+            resolver = null;
+        }
         this.pr = pr;
         ToadletContainer tc = pr.getToadletContainer(); //Get the container
         IndynetToadlet rt = new IndynetToadlet(BASEPATH, pr.getHLSimpleClient(), pr.getNode(), resolver); //Create the Toadlet that handles the HTTP requests
@@ -65,15 +65,49 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     public FCPPluginMessage handlePluginFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm) {
         String action = fcppm.params.get("action");
         if (action.equalsIgnoreCase("resolver.register")){
-            String name = fcppm.params.get("name");
-            String requestKey = fcppm.params.get("requestKey");
-            SimpleFieldSet params = new SimpleFieldSet(false);
-            params.putSingle("name", name);
-            params.putSingle("requestKey", requestKey);
-            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, false, "NOT_IMPLEMENTED", "Indynet: Not implemented yet");
+            return handleResolverRegisterFCPMessage(fcppc, fcppm);
+        }
+        else if (action.equalsIgnoreCase("resolver.resolve")){
+            return handleResolverResolveFCPMessage(fcppc, fcppm);
         }
         else {
-            return FCPPluginMessage.constructErrorReply(fcppm, "NOT_SUPPORTED", "Indynet: Not supported yet.");
+            return FCPPluginMessage.constructErrorReply(fcppm, "NOT_SUPPORTED", "Indynet: Action not supported.");
         }
+    }
+    
+    private FCPPluginMessage handleResolverRegisterFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        String name = fcppm.params.get("name");
+        String requestKey = fcppm.params.get("requestKey");
+        SimpleFieldSet params;
+        try {
+            params = resolver.register(requestKey, name);
+            if (params.getInt("status") == InsertCallback.STATUS_SUCCESS){
+                return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+            }
+            else {
+                return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", params.get("error"));
+            }
+        } catch (Exception ex) {
+            return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", ex.getMessage());
+        } 
+    }
+    
+    private FCPPluginMessage handleResolverResolveFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        String name = fcppm.params.get("name");
+        SimpleFieldSet params = new SimpleFieldSet(false);
+        try {
+            JSONObject requestObject = resolver.resolve(name);
+            params.putSingle("json", requestObject.toJSONString());
+            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+        }
+        catch (FetchException ex){
+            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", "FetchException "+ex.getMessage());
+        }
+        catch(IOException ex){
+            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", "IOException "+ex.getMessage());
+        }
+        catch (ParseException ex) {
+            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", "ParseException "+ex.getMessage());
+        } 
     }
 }
