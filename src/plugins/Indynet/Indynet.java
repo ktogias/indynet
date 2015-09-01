@@ -28,7 +28,6 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
     final static String BASEPATH = "/indynet/"; //The base path under which the pugin is accessed. 
     final static String RESOLV_FILE = "indynet.resolv.json";
-    static IndynetResolver resolver;
     
     /**
      * Dummy implementation of terminate method. 
@@ -46,18 +45,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
      */
     @Override
     public void runPlugin(PluginRespirator pr) {
-        try {
-            resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE);
-        } catch (IOException e){
-            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, e);
-            resolver = null;
-        } catch (ParseException e) {
-            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, e);
-            resolver = null;
-        }
         this.pr = pr;
         ToadletContainer tc = pr.getToadletContainer(); //Get the container
-        IndynetToadlet rt = new IndynetToadlet(BASEPATH, pr.getHLSimpleClient(), pr.getNode(), resolver); //Create the Toadlet that handles the HTTP requests
+        IndynetToadlet rt = new IndynetToadlet(BASEPATH, RESOLV_FILE, pr.getHLSimpleClient(), pr.getNode(), pr.getToadletContainer()); //Create the Toadlet that handles the HTTP requests
         tc.register(rt, null, rt.path(), true, false); //Resgister the Toadlet to the container
     }
 
@@ -80,6 +70,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         String requestKey = fcppm.params.get("requestKey");
         SimpleFieldSet params;
         try {
+            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE);
             params = resolver.register(requestKey, name);
             if (params.getInt("status") == InsertCallback.STATUS_SUCCESS){
                 return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
@@ -96,6 +87,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         String name = fcppm.params.get("name");
         SimpleFieldSet params = new SimpleFieldSet(false);
         try {
+            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE);
             JSONObject requestObject = resolver.resolve(name);
             params.putSingle("json", requestObject.toJSONString());
             return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");

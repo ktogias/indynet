@@ -9,6 +9,7 @@ import freenet.client.FetchResult;
 import freenet.client.HighLevelSimpleClient;
 import freenet.clients.http.LinkEnabledCallback;
 import freenet.clients.http.Toadlet;
+import freenet.clients.http.ToadletContainer;
 import freenet.clients.http.ToadletContext;
 import freenet.clients.http.ToadletContextClosedException;
 import freenet.keys.FreenetURI;
@@ -20,8 +21,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 
@@ -33,24 +32,27 @@ import org.json.simple.parser.ParseException;
  */
 public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
     protected String path; //The url path under witch the Toadlet is accessed
+    protected String resolv_file;
     protected HighLevelSimpleClient client;
     protected Node node;
-    protected IndynetResolver resolver;
+    protected ToadletContainer container;
     
     /**
      * Class Constructor
      * 
      * @param path String : The url path under witch the Toadlet is accessed
+     * @param resolv_file
      * @param client HighLevelSimpleClient
      * @param node Node
-     * @param resolver
+     * @param container
      */
-    public IndynetToadlet(String path, HighLevelSimpleClient client, Node node, IndynetResolver resolver) {
+    public IndynetToadlet(String path, String resolv_file, HighLevelSimpleClient client, Node node, ToadletContainer container) {
         super(client);
         this.path = path;
+        this.resolv_file = resolv_file;
         this.client = client;
         this.node = node;
-        this.resolver = resolver;
+        this.container = container;
     }
     
     /**
@@ -83,12 +85,13 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
             furi = new FreenetURI(key); 
         }
         catch (MalformedURLException e){
-            if (resolver == null || key.startsWith("CHK@") || key.startsWith("SSK@") || key.startsWith("USK@") || key.startsWith("KSK@")){
+            if (key.startsWith("CHK@") || key.startsWith("SSK@") || key.startsWith("USK@") || key.startsWith("KSK@")){
                 writeReply(tc, 400, "text/plain", "error", "Malformed key: "+key);
                 return;
             }
             else {
                 try {
+                    IndynetResolver resolver = new IndynetResolver(client, container.getBucketFactory(), node, resolv_file);
                     SimpleFieldSet keyparts = decomposeNamedKey(key);
                     JSONObject resolveObject;
                     resolveObject = resolver.resolve(keyparts.get("name"));
@@ -121,11 +124,11 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
         SimpleFieldSet decomposition = new SimpleFieldSet(false);
         String[] parts = key.split("/");
         decomposition.putSingle("name", parts[0]);
-        String path = "";
+        String keypath = "";
         for (int i=1; i<parts.length; i++){
-                path+="/"+parts[i];
+                keypath+="/"+parts[i];
         }
-        decomposition.putSingle("path", path);
+        decomposition.putSingle("path", keypath);
         return decomposition;
     }
     
