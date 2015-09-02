@@ -80,7 +80,12 @@ public class IndynetResolver {
                 requestUri = new FreenetURI(requestKey+"/dummy/0");
             }
         }
-        BaseClientKey.getBaseKey(requestUri);
+        try {
+            BaseClientKey.getBaseKey(requestUri);
+        }
+        catch (MalformedURLException e1){
+            BaseClientKey.getBaseKey(requestUri.setDocName("dummy"));
+        }
         JSONObject robject = buildResolveObject(requestUri, name);
         FreenetURI resolveURI = buildResolveUri(name);
         InsertCallback callback = insertRegistration(robject, resolveURI);
