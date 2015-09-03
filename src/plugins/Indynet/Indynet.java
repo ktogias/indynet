@@ -26,7 +26,7 @@ import org.json.simple.parser.ParseException;
 public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPMessageHandler {
 
     PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
-    final static String BASEPATH = "/indynet/"; //The base path under which the pugin is accessed. 
+    final static String BASEPATH = "/indy:/"; //The base path under which the pugin is accessed. 
     final static String RESOLV_FILE = "indynet.resolv.json";
     
     /**

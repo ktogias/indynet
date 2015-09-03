@@ -80,6 +80,8 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
     public void handleMethodGET(URI uri, HTTPRequest httpr, ToadletContext tc) throws ToadletContextClosedException, IOException, MalformedURLException{
         String key = null;
         FreenetURI furi = null;
+        String name = null;
+        String requestKey = null;
         try {
             key = getKeyFromUri(uri);
             furi = new FreenetURI(key); 
@@ -94,8 +96,9 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
                     IndynetResolver resolver = new IndynetResolver(client, container.getBucketFactory(), node, resolv_file);
                     SimpleFieldSet keyparts = decomposeNamedKey(key);
                     JSONObject resolveObject;
-                    resolveObject = resolver.resolve(keyparts.get("name"));
-                    String requestKey = (String) resolveObject.get("requestKey");
+                    name = keyparts.get("name");
+                    resolveObject = resolver.resolve(name);
+                    requestKey = (String) resolveObject.get("requestKey");
                     furi = new FreenetURI(requestKey+keyparts.get("path"));
                 } catch (FetchException ex) {
                     writeReply(tc, 404, "text/plain", "Not found", "Malformed key or name not found: "+key);
@@ -110,7 +113,7 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
             return;
         }
         try {
-            ftechFreenetURI(furi, tc);
+            ftechFreenetURI(furi, name, requestKey, tc);
         } catch (URISyntaxException ex) {
             writeReply(tc, 500, "text/plain", "error", "key: "+furi.toString()+" "+ex.toString());
         }
@@ -132,7 +135,7 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
         return decomposition;
     }
     
-    private void ftechFreenetURI(FreenetURI furi, ToadletContext tc) throws ToadletContextClosedException, IOException, URISyntaxException{
+    private void ftechFreenetURI(FreenetURI furi, String name, String requestKey, ToadletContext tc) throws ToadletContextClosedException, IOException, URISyntaxException{
         FetchResult result;
         try {
             result = client.fetch(furi);
@@ -143,11 +146,11 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
             }
             else if (ex.getMode().equals(FetchException.FetchExceptionMode.PERMANENT_REDIRECT)){
                 MultiValueTable<String, String> headers = new MultiValueTable<String, String>();
-                headers.put("Location", path+ex.newURI.toString());
+                headers.put("Location", path+"/"+ex.newURI.toString().replaceFirst(requestKey, name));
 		tc.sendReplyHeaders(302, "Found", headers, null, 0);
             }
             else if (ex.newURI != null){
-                ftechFreenetURI(ex.newURI, tc);
+                ftechFreenetURI(ex.newURI, name, requestKey, tc);
             }
             else {
                 writeReply(tc, 500, "text/plain", "error", "key: "+furi.toString()+" "+ex.toString());
