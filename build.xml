@@ -6,6 +6,7 @@
 	<property name="freenet-cvs-snapshot.location" location="lib/freenet.jar"/>
 	<property name="freenet-ext.location" location="lib/freenet_ext/freenet-ext.jar"/>
         <property name="bcprov.location" location="lib/bcprov-jdk15on-152.jar"/>
+        <property name="jbcrypt.location" location="lib/jbcrypt.jar"/>
 	<property name="svn.revision" value="@custom@"/>
 	<property name="source-version" value="1.5"/>
 	<property name="build" location="build/"/>
@@ -38,7 +39,8 @@
                                 <pathelement location="${json-simple.location}"/>
 				<pathelement location="${freenet-ext.location}"/>
 				<pathelement location="${freenet-cvs-snapshot.location}"/>
-                                <pathelement location="${bcprov.location}"/>               
+                                <pathelement location="${bcprov.location}"/> 
+                                <pathelement location="${jbcrypt.location}"/>              
 			</classpath>
 			<include name="**/*.java"/>
 			<exclude name="**/*Test.java"/>
@@ -50,6 +52,7 @@
 		description="generate the distribution" >
 		<jar jarfile="${dist}/Indynet.jar" duplicate="fail">
                         <zipgroupfileset dir="lib" includes="json-simple-1.1.1.jar" />
+                        <zipgroupfileset dir="lib" includes="jbcrypt.jar" />
 			<manifest>
                                 <attribute name="DependencyFinder" value="main"/>
 				<attribute name="Plugin-Main-Class" value="plugins.Indynet.Indynet"/>
