@@ -38,6 +38,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     final static String BASEPATH = "/indy:/"; //The base path under which the pugin is accessed. 
     final static String RESOLV_FILE = "indynet.resolv.json";
     final static String AUTH_FILE = "indynet.auth.json";
+    final static int USERS_CACHE_SIZE = 50;
     private Map<String, User> usersCache;
     
     /**
@@ -57,7 +58,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     @Override
     public void runPlugin(PluginRespirator pr) {
         this.pr = pr;
-        this.usersCache = Util.createLRUMap(50);
+        this.usersCache = Util.createLRUMap(USERS_CACHE_SIZE);
         ToadletContainer tc = pr.getToadletContainer(); //Get the container
         IndynetToadlet rt = new IndynetToadlet(BASEPATH, RESOLV_FILE, pr.getHLSimpleClient(), pr.getNode(), pr.getToadletContainer()); //Create the Toadlet that handles the HTTP requests
         tc.register(rt, null, rt.path(), true, false); //Resgister the Toadlet to the container
