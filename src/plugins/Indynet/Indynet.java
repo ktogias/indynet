@@ -25,6 +25,7 @@ import java.util.logging.Logger;
 import org.bouncycastle.crypto.DataLengthException;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 /**
@@ -34,19 +35,19 @@ import org.json.simple.parser.ParseException;
  */
 public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPMessageHandler {
 
-    PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
-    final static String BASEPATH = "/indy:/"; //The base path under which the pugin is accessed. 
-    final static String RESOLV_FILE = "indynet.resolv.json";
-    final static String AUTH_FILE = "indynet.auth.json";
-    final static int USERS_CACHE_SIZE = 50;
+    private PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
+    private final static String BASEPATH = "/indy:/"; //The base path under which the pugin is accessed. 
+    private final static String RESOLV_FILE = "indynet.resolv.json";
+    private final static int USERS_CACHE_SIZE = 50;
     private Map<String, User> usersCache;
+    private IndynetCrypto crypto;
     
     /**
      * Dummy implementation of terminate method. 
      */
     @Override
     public void terminate() {
-
+        usersCache.clear();
     }
 
     /**
@@ -57,11 +58,16 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
      */
     @Override
     public void runPlugin(PluginRespirator pr) {
-        this.pr = pr;
-        this.usersCache = Util.createLRUMap(USERS_CACHE_SIZE);
-        ToadletContainer tc = pr.getToadletContainer(); //Get the container
-        IndynetToadlet rt = new IndynetToadlet(BASEPATH, RESOLV_FILE, pr.getHLSimpleClient(), pr.getNode(), pr.getToadletContainer()); //Create the Toadlet that handles the HTTP requests
-        tc.register(rt, null, rt.path(), true, false); //Resgister the Toadlet to the container
+        try {
+            this.pr = pr;
+            this.usersCache = Util.createLRUMap(USERS_CACHE_SIZE);
+            this.crypto = new IndynetCrypto();
+            ToadletContainer tc = pr.getToadletContainer(); //Get the container
+            IndynetToadlet rt = new IndynetToadlet(BASEPATH, RESOLV_FILE, pr.getHLSimpleClient(), pr.getNode(), pr.getToadletContainer()); //Create the Toadlet that handles the HTTP requests
+            tc.register(rt, null, rt.path(), true, false); //Resgister the Toadlet to the container
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(Indynet.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 
     @Override
@@ -73,11 +79,14 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         else if (action.equalsIgnoreCase("resolver.resolve")){
             return handleResolverResolveFCPMessage(fcppc, fcppm);
         }
-        else if (action.equalsIgnoreCase("userauth.signup")){
-            return handleUserAuthSignupFCPMessage(fcppc, fcppm);
+        else if (action.equalsIgnoreCase("userauth.getUsernameHash")){
+            return handleUserAuthGetUsernameHashFCPMessage(fcppc, fcppm);
         }
-        else if (action.equalsIgnoreCase("userauth.signin")){
-            return handleUserAuthSigninFCPMessage(fcppc, fcppm);
+        else if (action.equalsIgnoreCase("userauth.createAuthObject")){
+            return handleUserAuthCreateAuthObjectFCPMessage(fcppc, fcppm);
+        }
+        else if (action.equalsIgnoreCase("userauth.authenticate")){
+            return handleUserAuthAuthenticateFCPMessage(fcppc, fcppm);
         }
         else {
             return FCPPluginMessage.constructErrorReply(fcppm, "NOT_SUPPORTED", "Indynet: Action not supported.");
@@ -98,7 +107,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
                 return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", params.get("error"));
             }
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", ex.getMessage());
+            return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
         } 
     }
     
@@ -110,113 +119,56 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             JSONObject requestObject = resolver.resolve(name);
             params.putSingle("json", requestObject.toJSONString());
             return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+        } catch (Exception ex) {
+            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
         }
-        catch (FetchException ex){
-            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", "FetchException "+ex.getMessage());
+    }
+    
+    private FCPPluginMessage handleUserAuthGetUsernameHashFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        try {
+            String username = fcppm.params.get("username");
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            IndynetUserAuth auth = new IndynetUserAuth(crypto);
+            String hash = auth.getUsernameHash(username);
+            params.putSingle("hash", hash);
+            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+        } catch (Exception ex) {
+            return FCPPluginMessage.constructErrorReply(fcppm, "GET_USERNAME_HASH", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
         }
-        catch(IOException ex){
-            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", "IOException "+ex.getMessage());
-        }
-        catch (ParseException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", "ParseException "+ex.getMessage());
+        
+    }
+    
+    private FCPPluginMessage handleUserAuthCreateAuthObjectFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        try {
+            String username = fcppm.params.get("username");
+            String password = fcppm.params.get("password");
+            IndynetUserAuth auth = new IndynetUserAuth(crypto);
+            JSONObject authObject = auth.createAuthObject(username, password);
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            params.putSingle("authObject", authObject.toJSONString());
+            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+        } catch (Exception ex) {
+            return FCPPluginMessage.constructErrorReply(fcppm, "CREATE_AUTH_OBJECT", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
         } 
     }
     
-    private FCPPluginMessage handleUserAuthSignupFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm) {
-        String username = fcppm.params.get("username");
-        String password = fcppm.params.get("password");
-        String authInsertKey = fcppm.params.get("authInsertKey");
-        String authRequestKey = fcppm.params.get("authRequestKey");
-        
-        SimpleFieldSet params;
-        IndynetUserAuth auth;
+    private FCPPluginMessage handleUserAuthAuthenticateFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
-            if (authInsertKey == null && authRequestKey == null){
-                auth = new IndynetUserAuth(usersCache, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), AUTH_FILE);
+            JSONParser parser = new JSONParser();
+            String username = fcppm.params.get("username");
+            String password = fcppm.params.get("password");
+            JSONObject authObject = (JSONObject) parser.parse(fcppm.params.get("authObject"));
+            IndynetUserAuth auth = new IndynetUserAuth(crypto);
+            User user = auth.authenticate(authObject, username, password);
+            if (!usersCache.containsKey(user.getHash())){
+                usersCache.put(user.getHash(), user);
             }
-            else {
-                auth = new IndynetUserAuth(usersCache, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), authInsertKey, authRequestKey);
-            }
-            params = auth.signup(username, password);
-            if (params.getInt("status") == InsertCallback.STATUS_SUCCESS){
-                return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
-            }
-            else {
-                return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", params.get("error"));
-            }
-        }
-        catch(IOException ex){
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "IOException "+ex.getMessage());
-        } catch (ParseException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "ParseException "+ex.getMessage());
-        } catch (NoSuchAlgorithmException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "NoSuchAlgorithmException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (DataLengthException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "DataLengthException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (IllegalStateException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "IllegalStateException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (InvalidCipherTextException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "InvalidCipherTextException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (InvalidKeySpecException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "InvalidKeySpecException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        }  catch (WrongPrameterException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "WrongPrameterException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (InsertException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "InsertException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (InterruptedException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "InterruptedException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (FSParseException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNUP_ERROR", "FSParseException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            params.putSingle("status", "success");
+            params.putSingle("userHash", user.getHash());
+            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+        } catch (Exception ex) {
+            return FCPPluginMessage.constructErrorReply(fcppm, "AUTHENTICATE", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
         } 
-    }
-    
-    private FCPPluginMessage handleUserAuthSigninFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
-        String username = fcppm.params.get("username");
-        String password = fcppm.params.get("password");
-        String authInsertKey = fcppm.params.get("authInsertKey");
-        String authRequestKey = fcppm.params.get("authRequestKey");
-        
-        SimpleFieldSet params;
-        IndynetUserAuth auth;
-        try {
-            if (authInsertKey == null && authRequestKey == null){
-                auth = new IndynetUserAuth(usersCache, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), AUTH_FILE);
-            }
-            else {
-                auth = new IndynetUserAuth(usersCache, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), authInsertKey, authRequestKey);
-            }
-            params = auth.signin(username, password);
-            if (params.getInt("status") == InsertCallback.STATUS_SUCCESS){
-                return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
-            }
-            else {
-                return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", params.get("error"));
-            }
-        }
-        catch (PasswordMismatchException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "PasswordMismatch");
-        } catch (PublicKeyMismatchException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "PublicKeyMismatch");
-        } catch(IOException ex){
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "IOException "+ex.getMessage());
-        } catch (ParseException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "ParseException "+ex.getMessage());
-        } catch (NoSuchAlgorithmException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "NoSuchAlgorithmException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (DataLengthException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "DataLengthException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (IllegalStateException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "IllegalStateException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (InvalidCipherTextException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "InvalidCipherTextException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (InvalidKeySpecException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "InvalidKeySpecException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (FetchException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "FetchException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (WrongPrameterException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "WrongPrameterException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        } catch (FSParseException ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "SIGNIN_ERROR", "FSParseException "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        }
     }
 }
