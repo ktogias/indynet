@@ -126,10 +126,10 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     
     private FCPPluginMessage handleUserAuthGetUsernameHashFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
-            String username = fcppm.params.get("username");
-            SimpleFieldSet params = new SimpleFieldSet(false);
             IndynetUserAuth auth = new IndynetUserAuth(crypto);
-            String hash = auth.getUsernameHash(username);
+            String hash = auth.getUsernameHash(fcppm.params.get("username"));
+            fcppm.params.removeValue("username");
+            SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("hash", hash);
             return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
         } catch (Exception ex) {
@@ -140,10 +140,10 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     
     private FCPPluginMessage handleUserAuthCreateAuthObjectFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
-            String username = fcppm.params.get("username");
-            String password = fcppm.params.get("password");
             IndynetUserAuth auth = new IndynetUserAuth(crypto);
-            JSONObject authObject = auth.createAuthObject(username, password);
+            JSONObject authObject = auth.createAuthObject(fcppm.params.get("username"), fcppm.params.get("password"));
+            fcppm.params.removeValue("username");
+            fcppm.params.removeValue("password");
             SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("authObject", authObject.toJSONString());
             return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
@@ -155,11 +155,14 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     private FCPPluginMessage handleUserAuthAuthenticateFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
             JSONParser parser = new JSONParser();
-            String username = fcppm.params.get("username");
-            String password = fcppm.params.get("password");
-            JSONObject authObject = (JSONObject) parser.parse(fcppm.params.get("authObject"));
             IndynetUserAuth auth = new IndynetUserAuth(crypto);
-            User user = auth.authenticate(authObject, username, password);
+            User user = auth.authenticate(
+                    (JSONObject) parser.parse(fcppm.params.get("authObject")), 
+                    fcppm.params.get("username"), 
+                    fcppm.params.get("password"));
+            fcppm.params.removeValue("authObject");
+            fcppm.params.removeValue("username");
+            fcppm.params.removeValue("password");
             if (!usersCache.containsKey(user.getHash())){
                 usersCache.put(user.getHash(), user);
             }
