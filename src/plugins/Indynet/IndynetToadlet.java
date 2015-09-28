@@ -93,7 +93,7 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback{
             }
             else {
                 try {
-                    IndynetResolver resolver = new IndynetResolver(client, container.getBucketFactory(), node, resolv_file);
+                    IndynetResolver resolver = new IndynetResolver(client, container.getBucketFactory(), node, resolv_file, path);
                     SimpleFieldSet keyparts = decomposeNamedKey(key);
                     JSONObject resolveObject;
                     name = keyparts.get("name");
