@@ -271,7 +271,7 @@ public class IndynetCrypto {
      * @throws NoSuchAlgorithmException 
      */
     private void reseedDRGenerator() throws NoSuchAlgorithmException{
-        drgenerator.addSeedMaterial(SecureRandom.getInstance("SHA1PRNG").longs().findAny().getAsLong());
+        drgenerator.addSeedMaterial(SecureRandom.getInstance("SHA1PRNG").nextLong());
     }
     
     /**
