@@ -79,9 +79,6 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         else if (action.equalsIgnoreCase("userauth.authenticate")){
             return handleUserAuthAuthenticateFCPMessage(fcppc, fcppm);
         }
-        else if (action.equalsIgnoreCase("resolver.gekey")){
-            return handleResolverGetKeyFCPMessage(fcppc, fcppm);
-        }
         else {
             return FCPPluginMessage.constructErrorReply(fcppm, "NOT_SUPPORTED", "Indynet: Action not supported.");
         }
@@ -107,26 +104,14 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     
     private FCPPluginMessage handleResolverResolveFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         String name = fcppm.params.get("name");
-        SimpleFieldSet params = new SimpleFieldSet(false);
-        try {
-            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH);
-            JSONObject requestObject = resolver.resolve(name);
-            params.putSingle("json", requestObject.toJSONString());
-            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
-        } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
-        }
-    }
-    
-    private FCPPluginMessage handleResolverGetKeyFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
-        String url = fcppm.params.get("url");
         boolean persistent = fcppm.params.getBoolean("persistent", false);
         boolean realtime = fcppm.params.getBoolean("realtime", false);
         short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
         SimpleFieldSet params = new SimpleFieldSet(false);
         try {
             IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH);
-            params.putSingle("key", resolver.getKey(url, fcppc, fcppm, priorityClass, persistent, realtime));
+            String requestKey = resolver.resolveName(name, fcppc, fcppm, priorityClass, persistent, realtime);
+            params.putSingle("requestKey", requestKey);
             return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
         } catch (Exception ex) {
             return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));

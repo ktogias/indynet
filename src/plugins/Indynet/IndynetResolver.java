@@ -31,7 +31,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.TimeZone;
 import org.json.simple.JSONObject;
@@ -50,6 +53,7 @@ public class IndynetResolver {
     protected static String insertKey;
     protected static String requestKey;
     protected static String path;
+    protected final static short DEFAULT_PRIORITY = RequestStarter.INTERACTIVE_PRIORITY_CLASS;
     
     public IndynetResolver(HighLevelSimpleClient client, BucketFactory bf, Node node, String resolvFile, String path) throws FileNotFoundException, IOException, ParseException{
         this.client = client;
@@ -68,14 +72,11 @@ public class IndynetResolver {
         return keys;
     }
     
-    public JSONObject resolve(String name) throws FetchException, MalformedURLException, IOException, ParseException{
-        FetchResult result = client.fetch(new FreenetURI(requestKey+"/"+name));
-        JSONParser parser = new JSONParser();
-        JSONObject resolveObject = (JSONObject) parser.parse(new String(result.asByteArray(), "UTF-8"));
-        return resolveObject;
+    public String resolveName(String name) throws FetchException, MalformedURLException, IOException, ParseException, PersistenceDisabledException, InterruptedException, UnsupportedEncodingException, ResolveErrorException{
+        return resolveName(name, null, null, DEFAULT_PRIORITY, false, false);
     }
     
-    public String resolve(String name, FCPPluginConnection connection, FCPPluginMessage message, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, ParseException, UnsupportedEncodingException, IOException, ResolveErrorException{
+    public String resolveName(String name, FCPPluginConnection connection, FCPPluginMessage message, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, ParseException, UnsupportedEncodingException, IOException, ResolveErrorException{
         FreenetURI furi = new FreenetURI(requestKey+"/"+name);
         FetchContext fctx = new FetchContext(client.getFetchContext(), IDENTICAL_MASK);
         FetchCallback callback = new FetchCallback(node, fctx, furi, persistent, realtime, connection, message);
@@ -123,52 +124,35 @@ public class IndynetResolver {
             result.putSingle("resolveURI", callback.getInsertedURI().toString());
         }
         else {
-            result.putSingle("error", callback.getInsertException().getMessage());
+            result.putSingle("error", callback.getInsertException().getClass().getName()+" "+callback.getInsertException().getMessage()+" "+Arrays.toString(callback.getInsertException().getStackTrace()));
         }
         return result;
     }
     
-    public String getKey(String url) throws MalformedNamedUrlException, MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, ParseException, IOException, UnsupportedEncodingException, ResolveErrorException{
-        return getKey(url, null, null, RequestStarter.INTERACTIVE_PRIORITY_CLASS, false, false);
-    }
-    
-    public String getKey(String url, short priorityClass, boolean persistent, boolean realtime) throws MalformedNamedUrlException, MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, IOException, ParseException, UnsupportedEncodingException, ResolveErrorException{
-        return getKey(url, null, null, priorityClass, persistent, realtime);
-    }
-    
-    public String getKey(String url, FCPPluginConnection connection, FCPPluginMessage message, short priorityClass, boolean persistent, boolean realtime) throws MalformedNamedUrlException, MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, ParseException, IOException, UnsupportedEncodingException, ResolveErrorException{
-        if (url.startsWith("["+path+"]")){
-            url = url.replaceFirst("["+path+"]", "");
+    public URI normalizeUri(URI uri) throws URISyntaxException{
+        String uriStr = uri.getPath().replaceFirst(path, "");
+        String query = uri.getQuery();
+        if (query != null){
+            uriStr += "?"+query;
         }
-        if (isKey(url)){
-            return url;
-        }
-        else {
-            try {
-                SimpleFieldSet namedUrlParts = decomposeNamedUrl(url);
-                String key = resolve(namedUrlParts.get("name"), connection, message, priorityClass, persistent, realtime);
-                return key+"/"+namedUrlParts.get("path");
-            }
-            catch (NullPointerException ex){
-                throw new MalformedNamedUrlException("Could not decompose named url!");
-            }
-        }
-        
+        return new URI(uriStr);
     }
     
-    public boolean isKey(String url){
-        return url.startsWith("CHK@") || url.startsWith("SSK@") || url.startsWith("USK@") || url.startsWith("KSK@");
+    public boolean isFreenetKey(String key){
+        return key.startsWith("CHK@") || key.startsWith("SSK@") || key.startsWith("USK@") || key.startsWith("KSK@");
     }
     
-    public SimpleFieldSet decomposeNamedUrl(String url){
+    public SimpleFieldSet decomposeUri(URI uri){
+        String path = uri.getPath();
         SimpleFieldSet decomposition = new SimpleFieldSet(false);
-        String[] parts = url.split("[/]");
-        decomposition.putSingle("name", parts[0]);
+        String[] parts = path.split("/");
+        decomposition.putSingle("key", parts[0]);
         String keypath = "";
         for (int i=1; i<parts.length; i++){
                 keypath+="/"+parts[i];
         }
         decomposition.putSingle("path", keypath);
+        decomposition.putSingle("query", uri.getQuery());
         return decomposition;
     }
     
@@ -179,7 +163,7 @@ public class IndynetResolver {
         obj.put("requestKey", requestUri.toString().split("/")[0]);
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         Timestamp now = new Timestamp(date.getTime());
-        obj.put("regTime", now.toLocalDateTime().toString());
+        obj.put("regTime", now.toString());
         return obj;
     }
     
