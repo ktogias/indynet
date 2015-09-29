@@ -27,6 +27,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 /**
  *
@@ -53,14 +55,8 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
     
     final Lock lock = new ReentrantLock();
     final Condition finished = lock.newCondition();
-    
-    private String operation = "Fetch";
-    
-    public FetchCallback(Node node, FetchContext context, FreenetURI uri, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage){
-        this(node, context, uri, persistent, realtime, pluginConnection, pluginMessage, null);
-    }
 
-    public FetchCallback(Node node, FetchContext context, FreenetURI uri, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage, String operation){
+    public FetchCallback(Node node, FetchContext context, FreenetURI uri, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage){
         this.node = node;
         this.context = context;
         this.uri = uri;
@@ -68,9 +64,6 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
         this.realtime = realtime;
         this.pluginConnection = pluginConnection;
         this.pluginMessage = pluginMessage;
-        if (operation != null){
-            this.operation = operation;
-        }
     }
     
     public void setClientGetter(ClientGetter getter){
@@ -114,8 +107,8 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
             try {
                 SimpleFieldSet params = new SimpleFieldSet(false);
                 params.putSingle("uri", uri.toString());
-                params.putSingle("operation", operation);
                 params.putSingle("status", "success");
+                params.putSingle("dataMimeType", result.getMimeType());
                 pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, result.asBucket(), true, "", ""));
             } catch (IOException ex) {
                 Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
@@ -135,7 +128,10 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
         }
         if (pluginConnection != null){
             try {
-                pluginConnection.send(FCPPluginMessage.constructErrorReply(pluginMessage, "FETCH_ERROR", uri.toString()+" "+operation+" "+fe.getClass().getName()+" "+fe.getMessage()+" "+Arrays.toString(fe.getStackTrace())));
+                JSONObject errorObject = new JSONObject();
+                errorObject.put("requestedURI", uri.toString());
+                errorObject.put("trace", Util.exceptionToJson(fe));
+                pluginConnection.send(FCPPluginMessage.constructErrorReply(pluginMessage, "FETCH_ERROR", errorObject.toJSONString()));
             } catch (IOException ex) {
                 Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -167,7 +163,6 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
         try {
             SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("uri", uri.toString());
-            params.putSingle("operation", operation);
             params.putSingle("status", "progress");
             params.putSingle("eventclass", ce.getClass().getName());
             params.put("eventcode", ce.getCode());

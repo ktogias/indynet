@@ -22,6 +22,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 /**
@@ -29,30 +30,43 @@ import org.json.simple.JSONObject;
  * @author ktogias
  */
 public class Util {
-    public static InsertCallback insertJSONObject(JSONObject object, FreenetURI uri, HighLevelSimpleClient client, BucketFactory bf, Node node) throws UnsupportedEncodingException, IOException, InsertException{
+
+    public static InsertCallback insertJSONObject(JSONObject object, FreenetURI uri, HighLevelSimpleClient client, BucketFactory bf, Node node) throws UnsupportedEncodingException, IOException, InsertException {
         byte[] data = object.toJSONString().getBytes("UTF-8");
-        RandomAccessBucket bucket = bf.makeBucket(data.length+1);
+        RandomAccessBucket bucket = bf.makeBucket(data.length + 1);
         OutputStream os = bucket.getOutputStream();
         os.write(data);
-        os.close(); 
+        os.close();
         os = null;
         bucket.setReadOnly();
         ClientMetadata metadata = new ClientMetadata("application/json");
         InsertBlock ib = new InsertBlock(bucket, metadata, uri);
         InsertContext ictx = client.getInsertContext(true);
         InsertCallback callback = new InsertCallback(bucket, node, false, false);
-        ClientPutter pu = 
-            client.insert(ib, null, false, ictx, callback, RequestStarter.IMMEDIATE_SPLITFILE_PRIORITY_CLASS);
+        ClientPutter pu
+                = client.insert(ib, null, false, ictx, callback, RequestStarter.IMMEDIATE_SPLITFILE_PRIORITY_CLASS);
         callback.setClientPutter(pu);
         return callback;
     }
-    
+
     public static <String, User> Map<String, User> createLRUMap(final int maxEntries) {
-    return Collections.synchronizedMap(new LinkedHashMap<String, User>(maxEntries*10/7, 0.7f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, User> eldest) {
-            return size() > maxEntries;
+        return Collections.synchronizedMap(new LinkedHashMap<String, User>(maxEntries * 10 / 7, 0.7f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, User> eldest) {
+                return size() > maxEntries;
+            }
+        });
+    }
+
+    public static JSONObject exceptionToJson(Exception ex) {
+        JSONObject errorObject = new JSONObject();
+        errorObject.put("exception", ex.getClass().getName());
+        errorObject.put("message", ex.getMessage());
+        JSONArray trace = new JSONArray();
+        for (StackTraceElement element: ex.getStackTrace()){
+            trace.add(element.toString());
         }
-    });
-}
+        errorObject.put("trace", trace);
+        return errorObject;
+    }
 }

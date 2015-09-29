@@ -8,7 +8,6 @@ import freenet.client.ClientMetadata;
 import freenet.client.FetchContext;
 import static freenet.client.FetchContext.IDENTICAL_MASK;
 import freenet.client.FetchException;
-import freenet.client.FetchResult;
 import freenet.client.HighLevelSimpleClient;
 import freenet.client.InsertBlock;
 import freenet.client.InsertContext;

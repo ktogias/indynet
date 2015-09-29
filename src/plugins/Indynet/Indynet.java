@@ -112,9 +112,10 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH);
             String requestKey = resolver.resolveName(name, fcppc, fcppm, priorityClass, persistent, realtime);
             params.putSingle("requestKey", requestKey);
+            params.putSingle("status", "final");
             return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
+            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", Util.exceptionToJson(ex).toJSONString());
         }
     }
     
