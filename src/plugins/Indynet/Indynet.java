@@ -4,31 +4,20 @@
  */
 package plugins.Indynet;
 
-import freenet.client.FetchException;
-import freenet.client.InsertException;
-import freenet.client.async.ClientGetCallback;
 import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
 import freenet.clients.http.ToadletContainer;
-import freenet.node.FSParseException;
 import freenet.node.RequestStarter;
 import freenet.pluginmanager.*;
 import freenet.pluginmanager.FredPluginFCPMessageHandler.ServerSideFCPMessageHandler;
 import freenet.support.SimpleFieldSet;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.bouncycastle.crypto.DataLengthException;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 /**
  * The plugin class

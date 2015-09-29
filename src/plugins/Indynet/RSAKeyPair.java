@@ -17,7 +17,7 @@ import java.security.SecureRandom;
 public class RSAKeyPair {
     private String publicKey;
     private String privateKey;
-    private IndynetCrypto crypto;
+    private final IndynetCrypto crypto;
     
     public RSAKeyPair(KeyPair key, IndynetCrypto crypto){
         this.crypto = crypto;
