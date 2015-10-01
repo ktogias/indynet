@@ -87,10 +87,13 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     private FCPPluginMessage handleResolverRegisterFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         String name = fcppm.params.get("name");
         String requestKey = fcppm.params.get("requestKey");
+        boolean persistent = fcppm.params.getBoolean("persistent", false);
+        boolean realtime = fcppm.params.getBoolean("realtime", false);
+        short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
         SimpleFieldSet params;
         try {
             IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH);
-            params = resolver.register(requestKey, name);
+            params = resolver.register(requestKey, name, fcppc, fcppm, priorityClass, persistent, realtime);
             if (params.getInt("status") == InsertCallback.STATUS_SUCCESS){
                 return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
             }

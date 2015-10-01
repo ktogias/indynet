@@ -94,7 +94,7 @@ public class IndynetResolver {
         }
     }
     
-    public SimpleFieldSet register(String requestKey, String name) throws MalformedURLException, FetchException, IOException, InsertException, InterruptedException, Exception{
+    public SimpleFieldSet register(String requestKey, String name, FCPPluginConnection connection, FCPPluginMessage message, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, FetchException, IOException, InsertException, InterruptedException, Exception{
         FreenetURI requestUri;
         try {
             requestUri = new FreenetURI(requestKey);
