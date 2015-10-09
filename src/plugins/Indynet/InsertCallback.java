@@ -5,26 +5,36 @@
  */
 package plugins.Indynet;
 
+import freenet.client.InsertContext;
 import freenet.client.InsertException;
 import freenet.client.async.BaseClientPutter;
 import freenet.client.async.ClientContext;
 import freenet.client.async.ClientPutCallback;
 import freenet.client.async.ClientPutter;
+import freenet.client.events.ClientEvent;
+import freenet.client.events.ClientEventListener;
+import freenet.clients.fcp.FCPPluginConnection;
+import freenet.clients.fcp.FCPPluginMessage;
 import freenet.keys.FreenetURI;
 import freenet.node.Node;
 import freenet.node.RequestClient;
+import freenet.support.SimpleFieldSet;
 import freenet.support.api.Bucket;
 import freenet.support.api.RandomAccessBucket;
 import freenet.support.io.ResumeFailedException;
+import java.io.IOException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.json.simple.JSONObject;
 
 /**
  *
  * @author ktogias
  */
-public class InsertCallback implements ClientPutCallback, RequestClient {
+public class InsertCallback implements ClientPutCallback, RequestClient, ClientEventListener {
 
     public static final int STATUS_SUCCESS = 0;
     public static final int STATUS_FAILURE = 1;
@@ -39,14 +49,27 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
     private InsertException ie;
     private FreenetURI insertedURI;
 
-    final Lock lock = new ReentrantLock();
-    final Condition finished = lock.newCondition();
+    private final Lock lock = new ReentrantLock();
+    private final Condition finished = lock.newCondition();
+    
+    private final FCPPluginConnection pluginConnection;
+    private final FCPPluginMessage pluginMessage;
+    private final InsertContext context;
+    private final FreenetURI uri;
 
-    public InsertCallback(RandomAccessBucket bucket, Node node, boolean persistent, boolean realtime) {
+    public InsertCallback(Node node, InsertContext context, FreenetURI uri, RandomAccessBucket bucket, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) {
         this.bucket = bucket;
         this.node = node;
         this.persistent = persistent;
         this.realtime = realtime;
+        this.pluginConnection = pluginConnection;
+        this.pluginMessage = pluginMessage;
+        this.context = context;
+        this.uri = uri;
+    }
+    
+    public InsertCallback(Node node, InsertContext context, FreenetURI uri, RandomAccessBucket bucket, boolean persistent, boolean realtime) {
+        this(node, context, uri, bucket, persistent, realtime, null, null);
     }
 
     /**
@@ -56,6 +79,14 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
      */
     public void setClientPutter(ClientPutter clientPutter) {
         this.clientPutter = clientPutter;
+    }
+    
+    public void subscribeToContextEvents(){
+        context.eventProducer.addEventListener(this);
+    }
+    
+    public void unsubscribeFromContextEvents(){
+        context.eventProducer.removeEventListener(this);
     }
 
     /**
@@ -73,6 +104,17 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
         } finally {
             lock.unlock();
         }
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "Canceled");
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 
     /**
@@ -86,17 +128,47 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
 
     @Override
     public void onGeneratedURI(FreenetURI furi, BaseClientPutter bcp) {
-
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "GeneratedURI");
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 
     @Override
     public void onGeneratedMetadata(Bucket bucket, BaseClientPutter bcp) {
-
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "GeneratedMetadata");
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 
     @Override
     public void onFetchable(BaseClientPutter bcp) {
-
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "Fetchable");
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 
     @Override
@@ -110,6 +182,18 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
         } finally {
             lock.unlock();
         }
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("insertedUri", insertedURI.toString());
+                params.putSingle("status", "Success");
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, true, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 
     @Override
@@ -122,6 +206,18 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
             finished.signalAll();
         } finally {
             lock.unlock();
+        }
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "Failure");
+                params.putSingle("JSONError", Util.exceptionToJson(ie).toJSONString());
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "INSERT_FAILURE", "Insert failed!"));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
@@ -168,6 +264,24 @@ public class InsertCallback implements ClientPutCallback, RequestClient {
      */
     public FreenetURI getInsertedURI() {
         return insertedURI;
+    }
+
+    @Override
+    public void receive(ClientEvent ce, ClientContext cc) {
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "ReceivedEvent");
+                params.putSingle("eventclass", ce.getClass().getName());
+                params.put("eventcode", ce.getCode());
+                params.putSingle("eventdescription", ce.getDescription());
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 
 }

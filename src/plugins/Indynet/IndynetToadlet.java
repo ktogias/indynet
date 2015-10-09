@@ -88,8 +88,8 @@ public class IndynetToadlet extends Toadlet implements LinkEnabledCallback {
             String requestQuery = uriParts.get("query");
             if (!resolver.isFreenetKey(requestKey)){
                 try {
-                    requestKey = resolver.resolveName(requestKey);
-                } catch (ResolveErrorException ex) {
+                    requestKey = resolver.resolve(requestKey);
+                } catch (FetchException ex) {
                     writeReply(tc, 404, "text/plain", "Resolve Error", "Data Not found! "+ex.getMessage());
                     return;
                 } catch (Exception ex) {

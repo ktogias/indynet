@@ -106,9 +106,11 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
         if (pluginConnection != null){
             try {
                 SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "FetchCallback");
                 params.putSingle("uri", uri.toString());
-                params.putSingle("status", "success");
+                params.putSingle("status", "Success");
                 params.putSingle("dataMimeType", result.getMimeType());
+                params.put("dataSize", result.size());
                 pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, result.asBucket(), true, "", ""));
             } catch (IOException ex) {
                 Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
@@ -128,10 +130,12 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
         }
         if (pluginConnection != null){
             try {
-                JSONObject errorObject = new JSONObject();
-                errorObject.put("requestedURI", uri.toString());
-                errorObject.put("trace", Util.exceptionToJson(fe));
-                pluginConnection.send(FCPPluginMessage.constructErrorReply(pluginMessage, "FETCH_ERROR", errorObject.toJSONString()));
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "FetchCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "Failure");
+                params.putSingle("JSONError", Util.exceptionToJson(fe).toJSONString());
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "FETCH_FAILURE", "Fetch failed!"));
             } catch (IOException ex) {
                 Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -160,16 +164,19 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
 
     @Override
     public void receive(ClientEvent ce, ClientContext cc) {
-        try {
-            SimpleFieldSet params = new SimpleFieldSet(false);
-            params.putSingle("uri", uri.toString());
-            params.putSingle("status", "progress");
-            params.putSingle("eventclass", ce.getClass().getName());
-            params.put("eventcode", ce.getCode());
-            params.putSingle("eventdescription", ce.getDescription());
-            pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, true, "", ""));
-        } catch (IOException ex) {
-            Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+        if (pluginConnection != null){
+            try {
+                SimpleFieldSet params = new SimpleFieldSet(false);
+                params.putSingle("origin", "InsertCallback");
+                params.putSingle("uri", uri.toString());
+                params.putSingle("status", "ReceivedEvent");
+                params.putSingle("eventclass", ce.getClass().getName());
+                params.put("eventcode", ce.getCode());
+                params.putSingle("eventdescription", ce.getDescription());
+                pluginConnection.send(FCPPluginMessage.constructReplyMessage(pluginMessage, params, null, false, "", ""));
+            } catch (IOException ex) {
+                Logger.getLogger(FetchCallback.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
     

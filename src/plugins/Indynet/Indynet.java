@@ -7,6 +7,7 @@ package plugins.Indynet;
 import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
 import freenet.clients.http.ToadletContainer;
+import freenet.keys.FreenetURI;
 import freenet.node.RequestStarter;
 import freenet.pluginmanager.*;
 import freenet.pluginmanager.FredPluginFCPMessageHandler.ServerSideFCPMessageHandler;
@@ -90,18 +91,14 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         boolean persistent = fcppm.params.getBoolean("persistent", false);
         boolean realtime = fcppm.params.getBoolean("realtime", false);
         short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
-        SimpleFieldSet params;
         try {
-            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH);
-            params = resolver.register(requestKey, name, fcppc, fcppm, priorityClass, persistent, realtime);
-            if (params.getInt("status") == InsertCallback.STATUS_SUCCESS){
-                return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
-            }
-            else {
-                return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", params.get("error"));
-            }
+            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH, fcppc, fcppm);
+            FreenetURI insertedURI = resolver.register(requestKey, name, priorityClass, persistent, realtime);
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            params.putSingle("insertedURI", insertedURI.toString());
+            return Util.constructSuccessReplyMessage(fcppm, "Resolver", params);
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "REGISTER_ERROR", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
+            return Util.constructFailureReplyMessage(fcppm, "Resolver", "REGISTER_FAILURE", "Register failed!", ex);
         } 
     }
     
@@ -110,15 +107,14 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         boolean persistent = fcppm.params.getBoolean("persistent", false);
         boolean realtime = fcppm.params.getBoolean("realtime", false);
         short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
-        SimpleFieldSet params = new SimpleFieldSet(false);
         try {
-            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH);
-            String requestKey = resolver.resolveName(name, fcppc, fcppm, priorityClass, persistent, realtime);
+            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH, fcppc, fcppm);
+            String requestKey = resolver.resolve(name, priorityClass, persistent, realtime);
+            SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("requestKey", requestKey);
-            params.putSingle("status", "final");
-            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+            return Util.constructSuccessReplyMessage(fcppm, "Resolver", params);
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "RESOLVE_ERROR", Util.exceptionToJson(ex).toJSONString());
+            return Util.constructFailureReplyMessage(fcppm, "Resolver", "RESOLVE_FAILURE", "Resolve failed!", ex);
         }
     }
     
@@ -129,9 +125,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             fcppm.params.removeValue("username");
             SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("hash", hash);
-            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+            return Util.constructSuccessReplyMessage(fcppm, "UserAuth", params);
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "GET_USERNAME_HASH", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
+            return Util.constructFailureReplyMessage(fcppm, "UserAuth", "AUTH_GET_USERNAME_HASH_FAILURE", "Get username hash failed!", ex);
         }
         
     }
@@ -144,9 +140,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             fcppm.params.removeValue("password");
             SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("authObject", authObject.toJSONString());
-            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+            return Util.constructSuccessReplyMessage(fcppm, "UserAuth", params);
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "CREATE_AUTH_OBJECT", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
+            return Util.constructFailureReplyMessage(fcppm, "UserAuth", "AUTH_CREATE_AUTH_OBJECT_FAILURE", "Construction of auth object failed!", ex);
         } 
     }
     
@@ -167,9 +163,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             SimpleFieldSet params = new SimpleFieldSet(false);
             params.putSingle("status", "success");
             params.putSingle("userHash", user.getHash());
-            return FCPPluginMessage.constructReplyMessage(fcppm, params, null, true, "", "");
+            return Util.constructSuccessReplyMessage(fcppm, "UserAuth", params);
         } catch (Exception ex) {
-            return FCPPluginMessage.constructErrorReply(fcppm, "AUTHENTICATE", ex.getClass().getName()+" "+ex.getMessage()+" "+Arrays.toString(ex.getStackTrace()));
+            return Util.constructFailureReplyMessage(fcppm, "UserAuth", "AUTHENTICATE_FAILURE", "Authentication failed!", ex);
         } 
     }
 }

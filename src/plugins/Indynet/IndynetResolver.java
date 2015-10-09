@@ -4,16 +4,9 @@
  * and open the template in the editor.
  */
 package plugins.Indynet;
-import freenet.client.ClientMetadata;
-import freenet.client.FetchContext;
-import static freenet.client.FetchContext.IDENTICAL_MASK;
 import freenet.client.FetchException;
 import freenet.client.HighLevelSimpleClient;
-import freenet.client.InsertBlock;
-import freenet.client.InsertContext;
 import freenet.client.InsertException;
-import freenet.client.async.ClientGetter;
-import freenet.client.async.ClientPutter;
 import freenet.client.async.PersistenceDisabledException;
 import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
@@ -23,17 +16,14 @@ import freenet.node.Node;
 import freenet.node.RequestStarter;
 import freenet.support.SimpleFieldSet;
 import freenet.support.api.BucketFactory;
-import freenet.support.api.RandomAccessBucket;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.TimeZone;
 import org.json.simple.JSONObject;
@@ -51,50 +41,50 @@ public class IndynetResolver {
     protected static String RESOLVE_FILE;
     protected static String insertKey;
     protected static String requestKey;
-    protected static String path;
     protected final static short DEFAULT_PRIORITY = RequestStarter.INTERACTIVE_PRIORITY_CLASS;
     
-    public IndynetResolver(HighLevelSimpleClient client, BucketFactory bf, Node node, String resolvFile, String path) throws FileNotFoundException, IOException, ParseException{
+    protected String path;
+    protected FCPPluginConnection pluginConnection;
+    protected FCPPluginMessage pluginMessage;
+    
+    public IndynetResolver(HighLevelSimpleClient client, BucketFactory bf, Node node, String resolvFile, String path, FCPPluginConnection connection, FCPPluginMessage message) throws FileNotFoundException, IOException, ParseException{
         this.client = client;
         this.bf = bf;
         this.node = node;
         this.path = path;
+        this.pluginConnection = connection;
+        this.pluginMessage = message;
+        
         RESOLVE_FILE = resolvFile;
         JSONObject keys = readKeys();
         insertKey = (String) keys.get("insertKey");
         requestKey = (String) keys.get("requestKey");
     }
     
+    public IndynetResolver(HighLevelSimpleClient client, BucketFactory bf, Node node, String resolvFile, String path) throws FileNotFoundException, IOException, ParseException{
+        this(client, bf, node, resolvFile, path, null, null);
+    }
     private JSONObject readKeys() throws IOException, ParseException{
         JSONParser parser = new JSONParser();
         JSONObject keys = (JSONObject) parser.parse(new FileReader(RESOLVE_FILE));
         return keys;
     }
     
-    public String resolveName(String name) throws FetchException, MalformedURLException, IOException, ParseException, PersistenceDisabledException, InterruptedException, UnsupportedEncodingException, ResolveErrorException{
-        return resolveName(name, null, null, DEFAULT_PRIORITY, false, false);
+    public String resolve(String name) throws FetchException, MalformedURLException, IOException, ParseException, PersistenceDisabledException, InterruptedException, UnsupportedEncodingException, ResolveException{
+        return resolve(name, DEFAULT_PRIORITY, false, false);
     }
     
-    public String resolveName(String name, FCPPluginConnection connection, FCPPluginMessage message, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, ParseException, UnsupportedEncodingException, IOException, ResolveErrorException{
+    public String resolve(String name, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, FetchException, PersistenceDisabledException, InterruptedException, IOException, ParseException{
         FreenetURI furi = new FreenetURI(requestKey+"/"+name);
-        FetchContext fctx = new FetchContext(client.getFetchContext(), IDENTICAL_MASK);
-        FetchCallback callback = new FetchCallback(node, fctx, furi, persistent, realtime, connection, message);
-        callback.subscribeToContextEvents();
-        ClientGetter get = new ClientGetter(callback, furi, fctx, priorityClass);
-        callback.setClientGetter(get);
-        node.clientCore.clientContext.start(get);
-        int status = callback.getStatus();
-        if (status == FetchCallback.STATUS_SUCCESS){
-            JSONParser parser = new JSONParser();
-            JSONObject resolveObject = (JSONObject) parser.parse(new String(callback.getResult().asByteArray(), "UTF-8"));
-            return (String) resolveObject.get("requestKey");
-        }
-        else {
-            throw new ResolveErrorException("Name resolution failed");
-        }
+        JSONObject resolveObject = Util.fetchJSONObject(furi, client, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+        return (String) resolveObject.get("requestKey");
     }
     
-    public SimpleFieldSet register(String requestKey, String name, FCPPluginConnection connection, FCPPluginMessage message, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, FetchException, IOException, InsertException, InterruptedException, Exception{
+    public FreenetURI register(String requestKey, String name) throws MalformedURLException, BuildResolveURIException, IOException, UnsupportedEncodingException, InsertException, InterruptedException {
+        return register(requestKey, name, DEFAULT_PRIORITY, false, false);
+    }
+    
+    public FreenetURI register(String requestKey, String name, short priorityClass, boolean persistent, boolean realtime) throws MalformedURLException, BuildResolveURIException, IOException, UnsupportedEncodingException, InsertException, InterruptedException {
         FreenetURI requestUri;
         try {
             requestUri = new FreenetURI(requestKey);
@@ -115,17 +105,8 @@ public class IndynetResolver {
         }
         JSONObject robject = buildResolveObject(requestUri, name);
         FreenetURI resolveURI = buildResolveUri(name);
-        InsertCallback callback = insertRegistration(robject, resolveURI);
-        int status = callback.getStatus();
-        SimpleFieldSet result = new SimpleFieldSet(false);
-        result.put("status", status);
-        if (status == InsertCallback.STATUS_SUCCESS){
-            result.putSingle("resolveURI", callback.getInsertedURI().toString());
-        }
-        else {
-            result.putSingle("error", callback.getInsertException().getClass().getName()+" "+callback.getInsertException().getMessage()+" "+Arrays.toString(callback.getInsertException().getStackTrace()));
-        }
-        return result;
+        FreenetURI insertedURI = Util.insertJSONObject(robject, resolveURI, client, bf, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+        return insertedURI;
     }
     
     public URI normalizeUri(URI uri) throws URISyntaxException{
@@ -166,35 +147,16 @@ public class IndynetResolver {
         return obj;
     }
     
-    private FreenetURI buildResolveUri(String name) throws MalformedURLException, Exception{
+    private FreenetURI buildResolveUri(String name) throws BuildResolveURIException, MalformedURLException {
         try {
             if (name.isEmpty()){
-                throw new Exception("Registration name is empty");
+                throw new BuildResolveURIException("Registration name is empty");
             }
         }
         catch (NullPointerException e){
-            throw new Exception("Registration name is missing");
+            throw new BuildResolveURIException("Registration name is missing");
         }
         return new FreenetURI(insertKey+"/"+name.toLowerCase());
-    }
-    
-    
-    private InsertCallback insertRegistration(JSONObject regObj, FreenetURI uri) throws IOException, InsertException{
-        byte[] data = regObj.toJSONString().getBytes("UTF-8");
-        RandomAccessBucket bucket = bf.makeBucket(data.length+1);
-        OutputStream os = bucket.getOutputStream();
-        os.write(data);
-        os.close(); 
-        os = null;
-        bucket.setReadOnly();
-        ClientMetadata metadata = new ClientMetadata("application/json");
-        InsertBlock ib = new InsertBlock(bucket, metadata, uri);
-        InsertContext ictx = client.getInsertContext(true);
-        InsertCallback callback = new InsertCallback(bucket, node, false, false);
-        ClientPutter pu = 
-            client.insert(ib, null, false, ictx, callback, RequestStarter.IMMEDIATE_SPLITFILE_PRIORITY_CLASS);
-        callback.setClientPutter(pu);
-        return callback;
     }
     
 }

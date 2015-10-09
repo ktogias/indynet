@@ -9,8 +9,8 @@ package plugins.Indynet;
  *
  * @author ktogias
  */
-public class ResolveErrorException extends Exception {
-    public ResolveErrorException(String message) {
+public class ResolveException extends Exception {
+    public ResolveException(String message) {
         super(message);
     }
 }
