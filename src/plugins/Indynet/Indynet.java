@@ -12,6 +12,8 @@ import freenet.node.RequestStarter;
 import freenet.pluginmanager.*;
 import freenet.pluginmanager.FredPluginFCPMessageHandler.ServerSideFCPMessageHandler;
 import freenet.support.SimpleFieldSet;
+import freenet.support.api.Bucket;
+import freenet.support.api.RandomAccessBucket;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Map;
@@ -80,9 +82,32 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         else if (action.equalsIgnoreCase("userauth.authenticate")){
             return handleUserAuthAuthenticateFCPMessage(fcppc, fcppm);
         }
+        else if (action.equalsIgnoreCase("insertData")){
+            return handleInsertDataFCPMessage(fcppc, fcppm);
+        }
         else {
             return FCPPluginMessage.constructErrorReply(fcppm, "NOT_SUPPORTED", "Indynet: Action not supported.");
         }
+    }
+    
+    private FCPPluginMessage handleInsertDataFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        String insertKey = fcppm.params.get("insertKey");
+        String filename = fcppm.params.get("filename");
+        String contentType  = fcppm.params.get("contentType"); 
+        int version = fcppm.params.getInt("version", -1);
+        Bucket bucket = fcppm.data;
+        boolean persistent = fcppm.params.getBoolean("persistent", false);
+        boolean realtime = fcppm.params.getBoolean("realtime", false);
+        short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
+        try {
+            FreenetURI insertURI = Util.BuildInsertURI(insertKey, filename, version);
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            FreenetURI insertedURI = Util.insertData((RandomAccessBucket) bucket, insertURI, contentType, pr.getHLSimpleClient(), pr.getNode(), priorityClass, persistent, realtime, fcppc, fcppm);
+            params.putSingle("insertedURI", insertedURI.toString());
+            return Util.constructSuccessReplyMessage(fcppm, "InsertData", params);
+        } catch (Exception ex) {
+            return Util.constructFailureReplyMessage(fcppm, "InsertData", "INSERT_FAILURE", "Data insert failed!", ex);
+        } 
     }
     
     private FCPPluginMessage handleResolverRegisterFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){

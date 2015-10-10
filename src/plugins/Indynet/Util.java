@@ -21,7 +21,6 @@ import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
 import freenet.keys.FreenetURI;
 import freenet.node.Node;
-import freenet.node.RequestStarter;
 import freenet.support.SimpleFieldSet;
 import freenet.support.api.Bucket;
 import freenet.support.api.BucketFactory;
@@ -29,6 +28,7 @@ import freenet.support.api.RandomAccessBucket;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -43,14 +43,8 @@ import org.json.simple.parser.ParseException;
  */
 public class Util {
     
-    public static InsertCallback insertDataAsync(byte[] data, FreenetURI uri, HighLevelSimpleClient client, BucketFactory bf, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws IOException, InsertException{
-        RandomAccessBucket bucket = bf.makeBucket(data.length + 1);
-        OutputStream os = bucket.getOutputStream();
-        os.write(data);
-        os.close();
-        os = null;
-        bucket.setReadOnly();
-        ClientMetadata metadata = new ClientMetadata("application/json");
+    public static InsertCallback insertDataAsync(RandomAccessBucket bucket, FreenetURI uri, String contentType, HighLevelSimpleClient client, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws IOException, InsertException{
+        ClientMetadata metadata = new ClientMetadata(contentType);
         InsertBlock ib = new InsertBlock(bucket, metadata, uri);
         InsertContext ictx = new InsertContext(client.getInsertContext(true), new SimpleEventProducer());
         InsertCallback callback = new InsertCallback(node, ictx, uri, bucket, persistent, realtime, pluginConnection, pluginMessage);
@@ -61,8 +55,25 @@ public class Util {
         return callback;
     }
     
-    public static FreenetURI insertData(byte[] data, FreenetURI uri, HighLevelSimpleClient client, BucketFactory bf, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws IOException, InsertException, InterruptedException{
-        InsertCallback callback = Util.insertDataAsync(data, uri, client, bf, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+    public static InsertCallback insertDataAsync(byte[] data, FreenetURI uri, String contentType, HighLevelSimpleClient client, BucketFactory bf, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws IOException, InsertException{
+        RandomAccessBucket bucket = Util.ByteArrayToRandomAccessBucket(data, bf);
+        bucket.setReadOnly();
+        return insertDataAsync(bucket, uri, contentType, client, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+    }
+    
+    public static FreenetURI insertData(byte[] data, FreenetURI uri, String contentType, HighLevelSimpleClient client, BucketFactory bf, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws IOException, InsertException, InterruptedException{
+        InsertCallback callback = Util.insertDataAsync(data, uri, contentType, client, bf, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+        int status = callback.getStatus();
+        if (status == InsertCallback.STATUS_SUCCESS){
+            return callback.getInsertedURI();
+        }
+        else {
+            throw callback.getInsertException();
+        }
+    }
+    
+    public static FreenetURI insertData(RandomAccessBucket bucket, FreenetURI uri, String contentType, HighLevelSimpleClient client, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws IOException, InsertException, InterruptedException{
+        InsertCallback callback = Util.insertDataAsync(bucket, uri, contentType, client, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
         int status = callback.getStatus();
         if (status == InsertCallback.STATUS_SUCCESS){
             return callback.getInsertedURI();
@@ -74,7 +85,7 @@ public class Util {
 
     public static FreenetURI insertJSONObject(JSONObject object, FreenetURI uri, HighLevelSimpleClient client, BucketFactory bf, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws UnsupportedEncodingException, IOException, InsertException, InterruptedException {
         byte[] data = object.toJSONString().getBytes("UTF-8");
-        return Util.insertData(data, uri, client, bf, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+        return Util.insertData(data, uri, "application/json", client, bf, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
     }
     
     public static FetchCallback fetchDataAsync(FreenetURI uri, HighLevelSimpleClient client, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws FetchException, PersistenceDisabledException {
@@ -125,6 +136,33 @@ public class Util {
         }
         errorObject.put("trace", trace);
         return errorObject;
+    }
+    
+    public static RandomAccessBucket ByteArrayToRandomAccessBucket(byte[] data, BucketFactory bf) throws IOException{
+        RandomAccessBucket bucket = bf.makeBucket(data.length);
+        OutputStream os = bucket.getOutputStream();
+        os.write(data);
+        os.close();
+        return bucket;
+    }
+    
+    public static FreenetURI BuildInsertURI(String key, String filename, Integer version) throws MalformedURLException{
+        FreenetURI keyURI = new FreenetURI(key);
+        if (filename != null && !filename.isEmpty()){
+            if (!key.endsWith("/")){
+                key+= "/";
+            }
+            key+=filename;
+        }
+        if (version >= 0){
+            if (keyURI.isSSK()){
+                key+="-"+version.toString();
+            }
+            else if (keyURI.isUSK()){
+                key+="/"+version.toString();
+            }
+        }
+        return new FreenetURI(key);
     }
     
     public static FCPPluginMessage constructSuccessReplyMessage(FCPPluginMessage fcppm, String origin){
