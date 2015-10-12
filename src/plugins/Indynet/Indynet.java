@@ -4,6 +4,8 @@
  */
 package plugins.Indynet;
 
+import freenet.client.FetchException;
+import freenet.client.FetchResult;
 import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
 import freenet.clients.http.ToadletContainer;
@@ -14,6 +16,7 @@ import freenet.pluginmanager.FredPluginFCPMessageHandler.ServerSideFCPMessageHan
 import freenet.support.SimpleFieldSet;
 import freenet.support.api.Bucket;
 import freenet.support.api.RandomAccessBucket;
+import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Map;
@@ -85,6 +88,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         else if (action.equalsIgnoreCase("insertData")){
             return handleInsertDataFCPMessage(fcppc, fcppm);
         }
+        else if (action.equalsIgnoreCase("fetchData")){
+            return handleFetchDataFCPMessage(fcppc, fcppm);
+        }
         else {
             return FCPPluginMessage.constructErrorReply(fcppm, "NOT_SUPPORTED", "Indynet: Action not supported.");
         }
@@ -107,6 +113,51 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             return Util.constructSuccessReplyMessage(fcppm, "InsertData", params);
         } catch (Exception ex) {
             return Util.constructFailureReplyMessage(fcppm, "InsertData", "INSERT_FAILURE", "Data insert failed!", ex);
+        } 
+    }
+    
+    private FCPPluginMessage handleFetchDataFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        String url = fcppm.params.get("url");
+        boolean persistent = fcppm.params.getBoolean("persistent", false);
+        boolean realtime = fcppm.params.getBoolean("realtime", false);
+        short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
+        try {
+            IndynetResolver resolver = new IndynetResolver(pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), RESOLV_FILE, BASEPATH, fcppc, fcppm);
+            URI uri = resolver.normalizeUri(new URI(url));
+            SimpleFieldSet uriParts = resolver.decomposeUri(uri);
+            String requestKey = uriParts.get("key");
+            String requestPath = uriParts.get("path");
+            String requestQuery = uriParts.get("query");
+            if (!resolver.isFreenetKey(requestKey)){
+                SimpleFieldSet resolveStartResult = new SimpleFieldSet(false);
+                resolveStartResult.putSingle("phase","resolve");
+                resolveStartResult.putSingle("phaseStatus","tostart");
+                resolveStartResult.putSingle("requestKey", requestKey);
+                FCPPluginMessage resolveStartReplyMessage = Util.constructReplyMessage(fcppm, "FetchData", "progress", resolveStartResult);
+                fcppc.send(resolveStartReplyMessage);
+                requestKey = resolver.resolve(requestKey);
+                SimpleFieldSet resolveSuccessResult = new SimpleFieldSet(false);
+                resolveSuccessResult.putSingle("phase","resolve");
+                resolveSuccessResult.putSingle("phaseStatus","success");
+                resolveSuccessResult.putSingle("requestKey", requestKey);
+                FCPPluginMessage resolveSuccessReplyMessage = Util.constructReplyMessage(fcppm, "FetchData", "progress", resolveSuccessResult);
+                fcppc.send(resolveSuccessReplyMessage);
+            }
+            String newUriStr = requestKey;
+            if (requestPath != null){
+                newUriStr += requestPath;
+            }
+            if (requestQuery != null){
+                newUriStr += "?"+requestQuery;
+            }
+            FreenetURI furi = new FreenetURI(newUriStr);
+            FetchResult result = Util.fetchData(furi, pr.getHLSimpleClient(), pr.getNode(), priorityClass, persistent, realtime, fcppc, fcppm);
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            params.putSingle("fetchedURI", furi.toString());
+            params.putSingle("mimeType", result.getMimeType());
+            return Util.constructSuccessReplyMessage(fcppm, "FetchData", params, result.asBucket());
+        } catch (Exception ex) {
+            return Util.constructFailureReplyMessage(fcppm, "FetchData", "FETCH_FAILURE", "Data fetch failed!", ex);
         } 
     }
     

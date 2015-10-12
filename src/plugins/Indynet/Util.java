@@ -9,6 +9,7 @@ import freenet.client.ClientMetadata;
 import freenet.client.FetchContext;
 import static freenet.client.FetchContext.IDENTICAL_MASK;
 import freenet.client.FetchException;
+import freenet.client.FetchResult;
 import freenet.client.HighLevelSimpleClient;
 import freenet.client.InsertBlock;
 import freenet.client.InsertContext;
@@ -98,12 +99,11 @@ public class Util {
         return callback;
     }
     
-    public static byte[] fetchData(FreenetURI uri, HighLevelSimpleClient client, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws FetchException, PersistenceDisabledException, InterruptedException, IOException{
+    public static FetchResult fetchData(FreenetURI uri, HighLevelSimpleClient client, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws FetchException, PersistenceDisabledException, InterruptedException{
         FetchCallback callback = Util.fetchDataAsync(uri, client, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
         int status = callback.getStatus();
         if (status == FetchCallback.STATUS_SUCCESS){
-            JSONParser parser = new JSONParser();
-            return callback.getResult().asByteArray();
+            return callback.getResult();
         }
         else {
             throw callback.getFetchException();
@@ -111,7 +111,7 @@ public class Util {
     }
     
     public static JSONObject fetchJSONObject(FreenetURI uri, HighLevelSimpleClient client, Node node, short priorityClass, boolean persistent, boolean realtime, FCPPluginConnection pluginConnection, FCPPluginMessage pluginMessage) throws FetchException, PersistenceDisabledException, InterruptedException, IOException, ParseException {
-        byte[] data = Util.fetchData(uri, client, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
+        byte[] data = Util.fetchData(uri, client, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage).asByteArray();
         JSONParser parser = new JSONParser();
         JSONObject fetchedObject = (JSONObject) parser.parse(new String(data, "UTF-8"));
         return fetchedObject;
