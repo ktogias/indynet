@@ -35,6 +35,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     private PluginRespirator pr; //The PluginRespirator object provided when runPlugin method is called.
     private final static String BASEPATH = "/indy:/"; //The base path under which the pugin is accessed. 
     private final static String RESOLV_FILE = "indynet.resolv.json";
+    private final static String AUTH_FILE = "indynet.auth.json";
     private final static int USERS_CACHE_SIZE = 50;
     private Map<String, User> usersCache;
     private IndynetCrypto crypto;
@@ -75,6 +76,9 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
         }
         else if (action.equalsIgnoreCase("resolver.resolve")){
             return handleResolverResolveFCPMessage(fcppc, fcppm);
+        }
+        else if (action.equalsIgnoreCase("userauth.signup")){
+            return handleUserAuthSignUpFCPMessage(fcppc, fcppm);
         }
         else if (action.equalsIgnoreCase("userauth.getUsernameHash")){
             return handleUserAuthGetUsernameHashFCPMessage(fcppc, fcppm);
@@ -196,7 +200,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     
     private FCPPluginMessage handleUserAuthGetUsernameHashFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
-            IndynetUserAuth auth = new IndynetUserAuth(crypto);
+            IndynetUserAuth auth = new IndynetUserAuth(crypto, AUTH_FILE, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), fcppc, fcppm);
             String hash = auth.getUsernameHash(fcppm.params.get("username"));
             fcppm.params.removeValue("username");
             SimpleFieldSet params = new SimpleFieldSet(false);
@@ -210,7 +214,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     
     private FCPPluginMessage handleUserAuthCreateAuthObjectFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
-            IndynetUserAuth auth = new IndynetUserAuth(crypto);
+            IndynetUserAuth auth = new IndynetUserAuth(crypto, AUTH_FILE, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), fcppc, fcppm);
             JSONObject authObject = auth.createAuthObject(fcppm.params.get("username"), fcppm.params.get("password"));
             fcppm.params.removeValue("username");
             fcppm.params.removeValue("password");
@@ -225,7 +229,7 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
     private FCPPluginMessage handleUserAuthAuthenticateFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
         try {
             JSONParser parser = new JSONParser();
-            IndynetUserAuth auth = new IndynetUserAuth(crypto);
+            IndynetUserAuth auth = new IndynetUserAuth(crypto, AUTH_FILE, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), fcppc, fcppm);
             User user = auth.authenticate(
                     (JSONObject) parser.parse(fcppm.params.get("authObject")), 
                     fcppm.params.get("username"), 
@@ -242,6 +246,25 @@ public class Indynet implements FredPlugin, FredPluginThreadless, ServerSideFCPM
             return Util.constructSuccessReplyMessage(fcppm, "UserAuth", params);
         } catch (Exception ex) {
             return Util.constructFailureReplyMessage(fcppm, "UserAuth", "AUTHENTICATE_FAILURE", "Authentication failed!", ex);
+        } 
+    }
+    
+    private FCPPluginMessage handleUserAuthSignUpFCPMessage(FCPPluginConnection fcppc, FCPPluginMessage fcppm){
+        try {
+            short priorityClass = fcppm.params.getShort("priorityClass", RequestStarter.INTERACTIVE_PRIORITY_CLASS);
+            boolean persistent = fcppm.params.getBoolean("persistent", false);
+            boolean realtime = fcppm.params.getBoolean("realtime", false);
+            
+            IndynetUserAuth auth = new IndynetUserAuth(crypto, AUTH_FILE, pr.getHLSimpleClient(), pr.getToadletContainer().getBucketFactory(), pr.getNode(), fcppc, fcppm);
+            FreenetURI insertedURI = auth.signUp(fcppm.params.get("username"), fcppm.params.get("password"), priorityClass, persistent, realtime);
+            fcppm.params.removeValue("username");
+            fcppm.params.removeValue("password");
+            
+            SimpleFieldSet params = new SimpleFieldSet(false);
+            params.putSingle("insertedURI", insertedURI.toString());
+            return Util.constructSuccessReplyMessage(fcppm, "UserAuth", params);
+        } catch (Exception ex) {
+            return Util.constructFailureReplyMessage(fcppm, "UserAuth", "SIGNUP_FAILURE", "Signup failed!", ex);
         } 
     }
 }

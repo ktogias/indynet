@@ -1,8 +1,16 @@
 
 package plugins.Indynet;
 
+import freenet.client.HighLevelSimpleClient;
+import freenet.client.InsertException;
+import freenet.clients.fcp.FCPPluginConnection;
+import freenet.clients.fcp.FCPPluginMessage;
+import freenet.keys.FreenetURI;
+import freenet.node.Node;
+import freenet.support.api.BucketFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -12,6 +20,7 @@ import java.security.spec.InvalidKeySpecException;
 import org.bouncycastle.crypto.DataLengthException;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
 
 /**
  *
@@ -31,10 +40,28 @@ public class IndynetUserAuth {
     protected static final int USERNAME_HASH_SIZE = 192;
     
     protected final IndynetCrypto crypto;
+    protected final JSONObject config;
+    protected final String authInsertKey;
+    protected final String authRequestKey;
     
-    public IndynetUserAuth(IndynetCrypto crypto) throws NoSuchAlgorithmException{
-
+    protected final HighLevelSimpleClient client;
+    protected final BucketFactory bf;
+    protected final Node node;
+    
+    protected final FCPPluginConnection pluginConnection;
+    protected final FCPPluginMessage pluginMessage;
+    
+    public IndynetUserAuth(IndynetCrypto crypto, String configFile, HighLevelSimpleClient client, BucketFactory bf, Node node, FCPPluginConnection connection, FCPPluginMessage message) throws NoSuchAlgorithmException, IOException, FileNotFoundException, ParseException{
+        
         this.crypto = crypto;
+        this.config = Util.parseJsonFile(configFile);
+        this.authInsertKey = (String) config.get("insertKey");
+        this.authRequestKey = (String) config.get("requestKey");
+        this.client = client;
+        this.bf = bf;
+        this.node = node;
+        this.pluginConnection = connection;
+        this.pluginMessage = message;
     }
     
     public String getUsernameHash(String username) throws NoSuchAlgorithmException, UnsupportedEncodingException{
@@ -76,6 +103,13 @@ public class IndynetUserAuth {
         }
         User user = new User(pbkey, rsaKey, crypto);
         return user;
+    }
+    
+    public FreenetURI signUp(String username, String password, short priorityClass, boolean persistent, boolean realtime) throws NoSuchAlgorithmException, IOException, UnsupportedEncodingException, DataLengthException, IllegalStateException, InvalidCipherTextException, InvalidKeySpecException, InsertException, InterruptedException{
+        JSONObject authObject = createAuthObject(username, password);
+        String usernameHash = getUsernameHash(username);
+        FreenetURI insertURI= Util.BuildInsertURI(authInsertKey, usernameHash);
+        return Util.insertJSONObject(authObject, insertURI, client, bf, node, priorityClass, persistent, realtime, pluginConnection, pluginMessage);
     }
     
     private String getBaseHash(String username, String password) throws NoSuchAlgorithmException, UnsupportedEncodingException{

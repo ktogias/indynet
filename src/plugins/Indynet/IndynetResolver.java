@@ -56,18 +56,13 @@ public class IndynetResolver {
         this.pluginMessage = message;
         
         RESOLVE_FILE = resolvFile;
-        JSONObject keys = readKeys();
+        JSONObject keys = Util.parseJsonFile(RESOLVE_FILE);
         insertKey = (String) keys.get("insertKey");
         requestKey = (String) keys.get("requestKey");
     }
     
     public IndynetResolver(HighLevelSimpleClient client, BucketFactory bf, Node node, String resolvFile, String path) throws FileNotFoundException, IOException, ParseException{
         this(client, bf, node, resolvFile, path, null, null);
-    }
-    private JSONObject readKeys() throws IOException, ParseException{
-        JSONParser parser = new JSONParser();
-        JSONObject keys = (JSONObject) parser.parse(new FileReader(RESOLVE_FILE));
-        return keys;
     }
     
     public String resolve(String name) throws FetchException, MalformedURLException, IOException, ParseException, PersistenceDisabledException, InterruptedException, UnsupportedEncodingException, ResolveException{

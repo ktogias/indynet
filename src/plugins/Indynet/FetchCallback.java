@@ -15,10 +15,8 @@ import freenet.client.events.ClientEvent;
 import freenet.client.events.ClientEventListener;
 import freenet.client.events.ExpectedHashesEvent;
 import freenet.client.events.ExpectedMIMEEvent;
-import freenet.client.events.FinishedCompressionEvent;
 import freenet.client.events.SplitfileCompatibilityModeEvent;
 import freenet.client.events.SplitfileProgressEvent;
-import freenet.client.events.StartedCompressionEvent;
 import freenet.clients.fcp.FCPPluginConnection;
 import freenet.clients.fcp.FCPPluginMessage;
 import freenet.keys.FreenetURI;
@@ -28,15 +26,12 @@ import freenet.support.SimpleFieldSet;
 import freenet.support.io.ResumeFailedException;
 import java.io.IOException;
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.TimeZone;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 
 /**
  *
@@ -175,7 +170,7 @@ public class FetchCallback implements ClientGetCallback, RequestClient, ClientEv
         if (pluginConnection != null){
             try {
                 SimpleFieldSet params = new SimpleFieldSet(false);
-                params.putSingle("origin", "InsertCallback");
+                params.putSingle("origin", "FetchCallback");
                 params.putSingle("uri", uri.toString());
                 params.putSingle("status", "ReceivedEvent");
                 params.putSingle("eventclass", ce.getClass().getName());

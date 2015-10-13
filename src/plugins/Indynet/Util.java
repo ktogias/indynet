@@ -26,6 +26,8 @@ import freenet.support.SimpleFieldSet;
 import freenet.support.api.Bucket;
 import freenet.support.api.BucketFactory;
 import freenet.support.api.RandomAccessBucket;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -165,6 +167,9 @@ public class Util {
         return new FreenetURI(key);
     }
     
+    public static FreenetURI BuildInsertURI(String key, String filename) throws MalformedURLException{
+        return Util.BuildInsertURI(key, filename, -1);
+    }
     public static FCPPluginMessage constructSuccessReplyMessage(FCPPluginMessage fcppm, String origin){
         return constructReplyMessage(fcppm, origin, "Success", null, null,"", "", null);
     }
@@ -237,5 +242,11 @@ public class Util {
             messageSuccess = true;
         }
         return FCPPluginMessage.constructReplyMessage(fcppm, params, data, messageSuccess, errorCode, errorMessage);
+    }
+    
+    public static JSONObject parseJsonFile(String file) throws FileNotFoundException, IOException, ParseException{
+        JSONParser parser = new JSONParser();
+        JSONObject obj = (JSONObject) parser.parse(new FileReader(file));
+        return obj;
     }
 }
